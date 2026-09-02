@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>지뢰찾기: 수류탄 에디션</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f172a;
+    color: #fff;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  #game-container {
+    position: relative;
+    background: #111827;
+    border: 4px solid #374151;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    padding: 18px;
+  }
+
+  .screen {
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    text-align: center; padding: 30px 20px; min-width: 420px;
+  }
+  .hidden { display: none !important; }
+
+  h1 {
+    font-size: 1.9rem; margin-bottom: 10px; color: #4ade80;
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.6); letter-spacing: 1px;
+  }
+  .subtitle { color: #94a3b8; margin-bottom: 26px; font-size: 0.9rem; }
+
+  .diff-group { display: flex; gap: 14px; margin-bottom: 26px; }
+  .diff-card {
+    background: #1e293b; border: 2px solid #475569; border-radius: 8px;
+    padding: 14px 18px; text-align: center; cursor: pointer; transition: all 0.2s ease; min-width: 110px;
+  }
+  .diff-card:hover { border-color: #4ade80; transform: translateY(-2px); }
+  .diff-card.selected { border-color: #4ade80; background: #334155; box-shadow: 0 0 10px rgba(74,222,128,0.4); }
+  .diff-title { font-weight: bold; color: #f8fafc; margin-bottom: 4px; }
+  .diff-desc { font-size: 0.72rem; color: #94a3b8; }
+
+  .start-btn {
+    padding: 12px 40px; font-size: 1.2rem; font-weight: bold; color: #052e16;
+    background: linear-gradient(135deg, #4ade80, #16a34a);
+    border: none; border-radius: 25px; cursor: pointer;
+    box-shadow: 0 4px 15px rgba(22, 163, 74, 0.5); transition: all 0.2s ease;
+  }
+  .start-btn:hover { background: linear-gradient(135deg, #86efac, #4ade80); transform: scale(1.05); }
+  .hint { margin-top: 16px; font-size: 0.78rem; color: #64748b; }
+
+  #hud {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #1e293b; border-radius: 8px; padding: 8px 14px; margin-bottom: 12px;
+    font-family: 'Courier New', monospace; font-weight: bold; font-size: 1.1rem;
+  }
+  #hud .counter { color: #f87171; min-width: 54px; }
+  #hud .timer { color: #fbbf24; min-width: 54px; text-align: right; }
+  #reset-btn {
+    font-size: 1.4rem; background: #334155; border: 2px solid #475569; border-radius: 6px;
+    width: 40px; height: 40px; cursor: pointer; line-height: 1;
+  }
+  #reset-btn:hover { border-color: #4ade80; }
+  #back-link {
+    font-size: 0.75rem; color: #64748b; cursor: pointer; text-decoration: underline; margin-top: 8px; text-align: center;
+  }
+
+  #board {
+    display: grid;
+    gap: 2px;
+    background: #0b1220;
+    border-radius: 6px;
+    padding: 4px;
+    user-select: none;
+  }
+  .cell {
+    display: flex; align-items: center; justify-content: center;
+    background: #334155;
+    border-radius: 3px;
+    cursor: pointer;
+    font-weight: bold;
+    box-shadow: inset 0 2px 0 rgba(255,255,255,0.15), inset 0 -2px 0 rgba(0,0,0,0.3);
+  }
+  .cell:hover { filter: brightness(1.12); }
+  .cell.revealed {
+    background: #1e293b;
+    cursor: default;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+  }
+  .cell.exploded { background: #b91c1c; }
+  .cell.flagged { background: #334155; }
+  .cell svg { width: 68%; height: 68%; }
+
+  .result-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    display: flex; justify-content: center; align-items: center;
+    background: rgba(15, 23, 42, 0.92); border-radius: 10px; z-index: 10;
+  }
+  .result-box {
+    background: #1e293b; padding: 30px 40px; border-radius: 12px; border: 3px solid #4ade80;
+    text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .result-box.lost { border-color: #f87171; }
+  .result-box h2 { font-size: 1.8rem; margin-bottom: 10px; }
+  .result-box.lost h2 { color: #f87171; }
+  .result-box:not(.lost) h2 { color: #4ade80; }
+  .result-box p { color: #94a3b8; margin-top: 10px; font-size: 0.9rem; }
+  .result-box .stat { font-size: 1.5rem; color: #fde68a; font-family: monospace; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+
+  <div id="title-screen" class="screen">
+    <h1>💣 지뢰찾기: 수류탄 에디션 ★</h1>
+    <div class="subtitle">지뢰 칸을 클릭하면 수류탄이 터집니다</div>
+
+    <div class="diff-group" id="diff-options">
+      <div class="diff-card selected" data-diff="beginner">
+        <div class="diff-title">초급</div>
+        <div class="diff-desc">9 x 9<br>지뢰 10개</div>
+      </div>
+      <div class="diff-card" data-diff="intermediate">
+        <div class="diff-title">중급</div>
+        <div class="diff-desc">16 x 16<br>지뢰 40개</div>
+      </div>
+      <div class="diff-card" data-diff="expert">
+        <div class="diff-title">고급</div>
+        <div class="diff-desc">30 x 16<br>지뢰 99개</div>
+      </div>
+    </div>
+
+    <button id="start-btn" class="start-btn">START</button>
+    <div class="hint">좌클릭: 칸 열기 · 우클릭: 깃발 표시/해제</div>
+  </div>
+
+  <div id="game-screen" class="hidden" style="position: relative;">
+    <div id="hud">
+      <div class="counter">💣 <span id="mine-count">0</span></div>
+      <button id="reset-btn">🙂</button>
+      <div class="timer">⏱ <span id="timer">0</span></div>
+    </div>
+    <div id="board"></div>
+    <div id="back-link">← 난이도 선택으로</div>
+
+    <div id="result-overlay" class="result-overlay hidden">
+      <div id="result-box" class="result-box">
+        <h2 id="result-title">GAME OVER</h2>
+        <p id="result-sub">경과 시간</p>
+        <div class="stat" id="result-time">0</div>
+        <button id="restart-btn" class="start-btn" style="margin-top:20px;">RESTART</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const DIFFICULTIES = {
+    beginner:     { rows: 9,  cols: 9,  mines: 10, cell: 32 },
+    intermediate: { rows: 16, cols: 16, mines: 40, cell: 28 },
+    expert:       { rows: 16, cols: 30, mines: 99, cell: 20 }
+  };
+  const NUM_COLORS = {
+    1: '#60a5fa', 2: '#4ade80', 3: '#f87171', 4: '#818cf8',
+    5: '#fca5a5', 6: '#22d3ee', 7: '#e5e7eb', 8: '#9ca3af'
+  };
+
+  let diffKey = 'beginner';
+  let spec = DIFFICULTIES[diffKey];
+  let board = [];      // {mine,revealed,flagged,count,exploded,wrongFlag}
+  let cellEls = [];
+  let rows = 0, cols = 0, totalMines = 0;
+  let flagCount = 0;
+  let revealedCount = 0;
+  let firstClick = true;
+  let gameState = 'MENU'; // MENU, PLAYING, WON, LOST
+  let timerHandle = null;
+  let elapsedSec = 0;
+
+  const titleScreen = document.getElementById('title-screen');
+  const gameScreen = document.getElementById('game-screen');
+  const startBtn = document.getElementById('start-btn');
+  const resetBtn = document.getElementById('reset-btn');
+  const backLink = document.getElementById('back-link');
+  const boardEl = document.getElementById('board');
+  const mineCountEl = document.getElementById('mine-count');
+  const timerEl = document.getElementById('timer');
+  const resultOverlay = document.getElementById('result-overlay');
+  const resultBox = document.getElementById('result-box');
+  const resultTitle = document.getElementById('result-title');
+  const resultSub = document.getElementById('result-sub');
+  const resultTime = document.getElementById('result-time');
+  const restartBtn = document.getElementById('restart-btn');
+
+  document.querySelectorAll('#diff-options .diff-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('#diff-options .diff-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      diffKey = card.dataset.diff;
+    });
+  });
+
+  function grenadeSVG() {
+    return `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <line x1="12" y1="3" x2="12" y2="6" stroke="#94a3b8" stroke-width="1.5"/>
+      <circle cx="14" cy="2.5" r="1.6" fill="none" stroke="#cbd5e1" stroke-width="1.2"/>
+      <rect x="10.5" y="5.5" width="3" height="2" rx="0.5" fill="#6b7280"/>
+      <ellipse cx="12" cy="15" rx="8" ry="7.5" fill="#166534" stroke="#052e16" stroke-width="1"/>
+      <path d="M4.5 15 H19.5 M12 7.5 V22.5 M6.2 10 L17.8 20 M17.8 10 L6.2 20" stroke="#052e16" stroke-width="1" opacity="0.7"/>
+    </svg>`;
+  }
+  function flagSVG() {
+    return `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <line x1="7" y1="3" x2="7" y2="21" stroke="#e5e7eb" stroke-width="2"/>
+      <path d="M7 4 L19 8 L7 12 Z" fill="#f87171"/>
+    </svg>`;
+  }
+  function xMarkSVG() {
+    return `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <line x1="4" y1="4" x2="20" y2="20" stroke="#f87171" stroke-width="2.5"/>
+      <line x1="20" y1="4" x2="4" y2="20" stroke="#f87171" stroke-width="2.5"/>
+    </svg>`;
+  }
+
+  function inBounds(r, c) { return r >= 0 && r < rows && c >= 0 && c < cols; }
+  function neighbors(r, c) {
+    const list = [];
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        if (inBounds(r + dr, c + dc)) list.push([r + dr, c + dc]);
+      }
+    }
+    return list;
+  }
+
+  function buildEmptyBoard() {
+    spec = DIFFICULTIES[diffKey];
+    rows = spec.rows; cols = spec.cols; totalMines = spec.mines;
+    board = [];
+    for (let r = 0; r < rows; r++) {
+      const row = [];
+      for (let c = 0; c < cols; c++) {
+        row.push({ mine: false, revealed: false, flagged: false, count: 0, exploded: false, wrongFlag: false });
+      }
+      board.push(row);
+    }
+  }
+
+  function placeMines(safeR, safeC) {
+    const forbidden = new Set([`${safeR},${safeC}`]);
+    neighbors(safeR, safeC).forEach(([r, c]) => forbidden.add(`${r},${c}`));
+
+    let placed = 0;
+    while (placed < totalMines) {
+      const r = Math.floor(Math.random() * rows);
+      const c = Math.floor(Math.random() * cols);
+      const key = `${r},${c}`;
+      if (forbidden.has(key) || board[r][c].mine) continue;
+      board[r][c].mine = true;
+      placed++;
+    }
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (board[r][c].mine) continue;
+        board[r][c].count = neighbors(r, c).filter(([nr, nc]) => board[nr][nc].mine).length;
+      }
+    }
+  }
+
+  function renderBoardDOM() {
+    boardEl.style.gridTemplateColumns = `repeat(${cols}, ${spec.cell}px)`;
+    boardEl.innerHTML = '';
+    cellEls = [];
+    for (let r = 0; r < rows; r++) {
+      const rowEls = [];
+      for (let c = 0; c < cols; c++) {
+        const el = document.createElement('div');
+        el.className = 'cell';
+        el.style.width = spec.cell + 'px';
+        el.style.height = spec.cell + 'px';
+        el.style.fontSize = Math.floor(spec.cell * 0.5) + 'px';
+        el.dataset.r = r; el.dataset.c = c;
+        boardEl.appendChild(el);
+        rowEls.push(el);
+      }
+      cellEls.push(rowEls);
+    }
+  }
+
+  function renderCell(r, c) {
+    const cell = board[r][c];
+    const el = cellEls[r][c];
+    el.className = 'cell';
+    el.innerHTML = '';
+    el.style.color = '';
+
+    if (cell.revealed) {
+      el.classList.add('revealed');
+      if (cell.mine) {
+        if (cell.exploded) el.classList.add('exploded');
+        el.innerHTML = grenadeSVG();
+      } else if (cell.count > 0) {
+        el.textContent = cell.count;
+        el.style.color = NUM_COLORS[cell.count] || '#e5e7eb';
+      }
+    } else if (cell.flagged) {
+      el.classList.add('flagged');
+      el.innerHTML = cell.wrongFlag ? xMarkSVG() : flagSVG();
+    }
+  }
+
+  function renderAll() {
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) renderCell(r, c);
+  }
+
+  function startTimer() {
+    elapsedSec = 0;
+    timerEl.textContent = elapsedSec;
+    timerHandle = setInterval(() => {
+      elapsedSec++;
+      timerEl.textContent = elapsedSec;
+    }, 1000);
+  }
+  function stopTimer() {
+    if (timerHandle) clearInterval(timerHandle);
+    timerHandle = null;
+  }
+
+  function updateMineCounter() {
+    mineCountEl.textContent = totalMines - flagCount;
+  }
+
+  function floodReveal(startR, startC) {
+    const stack = [[startR, startC]];
+    while (stack.length) {
+      const [r, c] = stack.pop();
+      const cell = board[r][c];
+      if (cell.revealed || cell.flagged) continue;
+      cell.revealed = true;
+      revealedCount++;
+      renderCell(r, c);
+      if (cell.count === 0) {
+        neighbors(r, c).forEach(([nr, nc]) => {
+          if (!board[nr][nc].revealed && !board[nr][nc].flagged) stack.push([nr, nc]);
+        });
+      }
+    }
+  }
+
+  function revealAllMines() {
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cell = board[r][c];
+        if (cell.mine && !cell.flagged) { cell.revealed = true; renderCell(r, c); }
+        if (!cell.mine && cell.flagged) { cell.wrongFlag = true; renderCell(r, c); }
+      }
+    }
+  }
+
+  function showResult(won) {
+    resultTitle.textContent = won ? 'CLEAR!' : 'GAME OVER';
+    resultSub.textContent = won ? '경과 시간' : '터진 지뢰: 수류탄';
+    resultTime.textContent = elapsedSec + '초';
+    resultBox.classList.toggle('lost', !won);
+    resultOverlay.classList.remove('hidden');
+    resetBtn.textContent = won ? '😎' : '😵';
+  }
+
+  function loseGame(r, c) {
+    gameState = 'LOST';
+    stopTimer();
+    board[r][c].exploded = true;
+    board[r][c].revealed = true;
+    renderCell(r, c);
+    revealAllMines();
+    showResult(false);
+  }
+
+  function checkWin() {
+    if (revealedCount === rows * cols - totalMines) {
+      gameState = 'WON';
+      stopTimer();
+      showResult(true);
+    }
+  }
+
+  function handleReveal(r, c) {
+    if (gameState !== 'PLAYING') return;
+    const cell = board[r][c];
+    if (cell.flagged || cell.revealed) return;
+
+    if (firstClick) {
+      placeMines(r, c);
+      firstClick = false;
+      startTimer();
+      updateMineCounter();
+    }
+
+    if (board[r][c].mine) {
+      loseGame(r, c);
+      return;
+    }
+    floodReveal(r, c);
+    checkWin();
+  }
+
+  function handleFlag(r, c) {
+    if (gameState !== 'PLAYING') return;
+    const cell = board[r][c];
+    if (cell.revealed) return;
+    cell.flagged = !cell.flagged;
+    flagCount += cell.flagged ? 1 : -1;
+    updateMineCounter();
+    renderCell(r, c);
+  }
+
+  boardEl.addEventListener('click', e => {
+    const target = e.target.closest('.cell');
+    if (!target) return;
+    handleReveal(parseInt(target.dataset.r, 10), parseInt(target.dataset.c, 10));
+  });
+  boardEl.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    const target = e.target.closest('.cell');
+    if (!target) return;
+    handleFlag(parseInt(target.dataset.r, 10), parseInt(target.dataset.c, 10));
+  });
+
+  function newGame() {
+    stopTimer();
+    buildEmptyBoard();
+    flagCount = 0;
+    revealedCount = 0;
+    firstClick = true;
+    elapsedSec = 0;
+    gameState = 'PLAYING';
+    resetBtn.textContent = '🙂';
+    timerEl.textContent = '0';
+    updateMineCounter();
+    resultOverlay.classList.add('hidden');
+    renderBoardDOM();
+    renderAll();
+  }
+
+  startBtn.addEventListener('click', () => {
+    titleScreen.classList.add('hidden');
+    gameScreen.classList.remove('hidden');
+    newGame();
+  });
+  resetBtn.addEventListener('click', newGame);
+  restartBtn.addEventListener('click', newGame);
+  backLink.addEventListener('click', () => {
+    stopTimer();
+    gameState = 'MENU';
+    gameScreen.classList.add('hidden');
+    titleScreen.classList.remove('hidden');
+  });
+})();
+</script>
+</body>
+</html>
