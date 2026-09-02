@@ -156,7 +156,10 @@
         <h2 id="result-title">GAME OVER</h2>
         <p id="result-sub">경과 시간</p>
         <div class="stat" id="result-time">0</div>
-        <button id="restart-btn" class="start-btn" style="margin-top:20px;">RESTART</button>
+        <div style="display:flex; gap:10px; margin-top:20px; justify-content:center;">
+          <button id="undo-btn" class="start-btn hidden" style="padding:12px 20px; white-space:nowrap; background:linear-gradient(135deg,#60a5fa,#2563eb); box-shadow:0 4px 15px rgba(37,99,235,0.5);">↩ 되돌리기</button>
+          <button id="restart-btn" class="start-btn" style="padding:12px 24px; white-space:nowrap;">RESTART</button>
+        </div>
       </div>
     </div>
   </div>
@@ -188,6 +191,7 @@
   let gameState = 'MENU'; // MENU, PLAYING, WON, LOST
   let timerHandle = null;
   let elapsedSec = 0;
+  let lastSnapshot = null; // 마지막 클릭 직전 상태 (수류탄이 터졌을 때 되돌리기용)
 
   const titleScreen = document.getElementById('title-screen');
   const gameScreen = document.getElementById('game-screen');
@@ -203,6 +207,7 @@
   const resultSub = document.getElementById('result-sub');
   const resultTime = document.getElementById('result-time');
   const restartBtn = document.getElementById('restart-btn');
+  const undoBtn = document.getElementById('undo-btn');
 
   document.querySelectorAll('#diff-options .diff-card').forEach(card => {
     card.addEventListener('click', () => {
@@ -329,6 +334,9 @@
   function startTimer() {
     elapsedSec = 0;
     timerEl.textContent = elapsedSec;
+    runTimerInterval();
+  }
+  function runTimerInterval() {
     timerHandle = setInterval(() => {
       elapsedSec++;
       timerEl.textContent = elapsedSec;
@@ -337,6 +345,13 @@
   function stopTimer() {
     if (timerHandle) clearInterval(timerHandle);
     timerHandle = null;
+  }
+
+  function saveSnapshot() {
+    lastSnapshot = {
+      board: board.map(row => row.map(cell => ({ ...cell }))),
+      flagCount, revealedCount, elapsedSec
+    };
   }
 
   function updateMineCounter() {
@@ -377,6 +392,24 @@
     resultBox.classList.toggle('lost', !won);
     resultOverlay.classList.remove('hidden');
     resetBtn.textContent = won ? '😎' : '😵';
+    undoBtn.classList.toggle('hidden', won || !lastSnapshot);
+  }
+
+  function undoLastMove() {
+    if (!lastSnapshot) return;
+    board = lastSnapshot.board.map(row => row.map(cell => ({ ...cell })));
+    flagCount = lastSnapshot.flagCount;
+    revealedCount = lastSnapshot.revealedCount;
+    elapsedSec = lastSnapshot.elapsedSec;
+    lastSnapshot = null;
+
+    gameState = 'PLAYING';
+    resetBtn.textContent = '🙂';
+    timerEl.textContent = elapsedSec;
+    updateMineCounter();
+    resultOverlay.classList.add('hidden');
+    runTimerInterval();
+    renderAll();
   }
 
   function loseGame(r, c) {
@@ -408,6 +441,8 @@
       startTimer();
       updateMineCounter();
     }
+
+    saveSnapshot();
 
     if (board[r][c].mine) {
       loseGame(r, c);
@@ -446,6 +481,7 @@
     revealedCount = 0;
     firstClick = true;
     elapsedSec = 0;
+    lastSnapshot = null;
     gameState = 'PLAYING';
     resetBtn.textContent = '🙂';
     timerEl.textContent = '0';
@@ -462,6 +498,7 @@
   });
   resetBtn.addEventListener('click', newGame);
   restartBtn.addEventListener('click', newGame);
+  undoBtn.addEventListener('click', undoLastMove);
   backLink.addEventListener('click', () => {
     stopTimer();
     gameState = 'MENU';
